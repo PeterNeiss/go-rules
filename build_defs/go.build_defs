@@ -4,19 +4,25 @@ Go has a strong built-in concept of packages so it's probably a good idea to mat
 rules to Go packages.
 """
 
-def _exe_suffix():
-    """Returns the filename suffix an executable needs on the target platform.
+def _exe_name(out:str):
+    """Returns the given output name with the suffix an executable needs on the target platform.
 
     Windows decides what is executable by extension. Go's own os/exec will not run a file whose
     name has no extension in PATHEXT even when handed its full path, so a binary named after its
     rule cannot be run at all there - `plz run` fails on it, and so does anything using it as a
     tool.
 
+    A name that already ends in the suffix is left alone. Someone who named their output foo.exe
+    themselves meant foo.exe, not foo.exe.exe, and a repo working around the lack of this used to
+    end up with exactly that.
+
     N.B. this has to be evaluated per call rather than once at module level. These build defs are
     subincluded, and CONFIG.OS at module level reflects the host; only inside a function body is
     it the architecture actually being built for.
     """
-    return ".exe" if CONFIG.OS == "windows" else ""
+    if CONFIG.OS != "windows" or out.endswith(".exe"):
+        return out
+    return out + ".exe"
 
 
 def go_toolchain(name:str, url:str|dict='', version:str='', hashes:list=[], labels:list=[], visibility:list=["PUBLIC"],
@@ -706,7 +712,7 @@ def go_binary(name:str, srcs:list=[], resources:list=None, asm_srcs:list=[], out
         deps=deps,
         test_only=test_only,
     )
-    out = (out or name) + _exe_suffix()
+    out = _exe_name(out or name)
     return build_rule(
         name=name,
         srcs=[lib],
@@ -936,7 +942,7 @@ def go_test(name:str, srcs:list, resources:list=None, data:list|dict=None, deps:
         data = data,
         debug_data = debug_data,
         deps = deps + [modinfo],
-        outs = [name + _exe_suffix()],
+        outs = [_exe_name(name)],
         tools = tools,
         test_tools = test_tools,
         debug_tools = debug_tools,
@@ -1083,7 +1089,7 @@ def go_benchmark(name:str, srcs:list, resources:list=None, data:list|dict=None, 
         srcs=[lib_rule],
         data=data,
         deps=deps + [modinfo],
-        outs=[name + _exe_suffix()],
+        outs=[_exe_name(name)],
         tools=tools,
         cmd=cmds,
         visibility=visibility,
