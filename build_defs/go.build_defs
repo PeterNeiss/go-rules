@@ -28,24 +28,14 @@ def _exe_name(out:str):
 def _please_go_tool():
     """Returns the please_go to build with.
 
-    //tools:please_go is a download of a prebuilt release, and there is no Windows one - the
-    rule does not even define a target named please_go there, so the label dangles. A Windows
-    host uses the please_go the Please release bundles beside please.exe instead, found by name
-    on the build PATH, which always starts with Please's own install directory.
-
-    HOSTOS rather than OS: please_go runs on the machine doing the building whatever is being
-    built for, so a Linux host cross-compiling to Windows still wants the Linux one.
+    //tools:please_go downloads a prebuilt release, including for Windows now that one is
+    published - see tools/BUILD for where that comes from and why.
 
     The fallback names its own subrepo. A DefaultValue in .plzconfig is resolved in the plugin's
     scope, but a label returned from a build def is resolved in the caller's package, so a bare
     //tools:please_go here would mean the user's repo.
-
-    N.B. evaluated per call rather than at module level; CONFIG at module level reflects the
-    host rather than what is being built for.
     """
-    if CONFIG.GO.PLEASE_GO_TOOL:
-        return CONFIG.GO.PLEASE_GO_TOOL
-    return "please_go" if CONFIG.HOSTOS == "windows" else "///go//tools:please_go"
+    return CONFIG.GO.PLEASE_GO_TOOL or "///go//tools:please_go"
 
 
 def go_toolchain(name:str, url:str|dict='', version:str='', hashes:list=[], labels:list=[], visibility:list=["PUBLIC"],

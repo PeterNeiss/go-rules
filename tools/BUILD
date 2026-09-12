@@ -6,14 +6,26 @@ hashes = {
     "freebsd_amd64": "becb883a13c7f00eca71219a8539c5cc80eead8e0104e07c2d02ec6c6900ec7d",
     "linux_amd64": "92fbc45047eb825c0bded235447b9c455716f270ce174d107798f5770a4201ab",
     "linux_arm64": "bec438aa687021ad97ab1d626b538644b0a8827784e6458d24939e726f3db9c5",
+    "windows_amd64": "9e5da3f2695c27c165dd130901e7af60e511ce08b946335bf3fd2279cc8293b3",
 }
+
+# Upstream publishes no windows_amd64 please_go, and without one a native Windows plz cannot
+# build a Go target at all - the tool it needs has nothing to download. This fork publishes that
+# one asset and nothing else, so only that architecture is redirected here. When upstream
+# publishes its own, this whole map entry goes back to being unremarkable.
+owners = {"windows_amd64": "PeterNeiss"}
 
 for a, h in hashes.items():
     native = f"{CONFIG.OS}_{CONFIG.ARCH}" == a
+    owner = owners.get(a, "please-build")
     remote_file(
         name = "please_go" if native else f"please_go_{a}",
         binary = True,
         hashes = [h],
-        url = f"https://github.com/please-build/go-rules/releases/download/please-go-v{VERSION}/please_go-{VERSION}-{a}",
+        # The downloaded name carries the version and platform, which on Windows leaves it with
+        # no extension in PATHEXT - and Go's exec will not run such a file even given its full
+        # path. Every other platform is happy with the name it arrives under.
+        out = "please_go.exe" if a.startswith("windows") else None,
+        url = f"https://github.com/{owner}/go-rules/releases/download/please-go-v{VERSION}/please_go-{VERSION}-{a}",
         visibility = ["PUBLIC"] if native else None,
     )
