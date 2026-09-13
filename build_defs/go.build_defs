@@ -35,6 +35,19 @@ def _host_exe(path:str):
     return path + '.exe' if CONFIG.HOSTOS == 'windows' else path
 
 
+def _needs_cc(external_link:bool=False):
+    """Says whether a rule should name the C compiler as a tool.
+
+    Tools are resolved before anything runs, so naming cc where none exists fails the build even
+    when nothing would have called it. That is harmless where a C compiler is part of the system,
+    and Go modules on those systems rely on it being there. A Windows host has none by default,
+    and there only cgo or an external link needs one; everything else Go does is self-contained.
+    """
+    if not CONFIG.GO.CC_TOOL:
+        return False
+    return CONFIG.HOSTOS != 'windows' or CONFIG.GO.CGO_ENABLED or external_link
+
+
 def _sdk_extract_cmd(url:str):
     """Returns the command that unpacks a downloaded Go SDK into $OUT.
 
@@ -1284,7 +1297,7 @@ def _go_install_module(name:str, module:str, install:list, src:str, outs:list, d
                        test_only:bool, licences:list, linker_flags:list, env:dict, build_tags:list, labels:list=[]):
     build_tags = " ".join([f"--build_tag={tag}" for tag in build_tags])
 
-    cc_tool_flag = "--cc_tool=$TOOLS_CC" if CONFIG.GO.CC_TOOL else ''
+    cc_tool_flag = "--cc_tool=$TOOLS_CC" if _needs_cc() else ''
     cmd = [_set_go_env()]
     if CONFIG.GO.STDLIB:
         deps += _stdlib()
@@ -1310,7 +1323,7 @@ def _go_install_module(name:str, module:str, install:list, src:str, outs:list, d
         'go': [CONFIG.GO.GO_TOOL],
         'please_go': [_please_go_tool()],
     }
-    if CONFIG.GO.CC_TOOL:
+    if _needs_cc():
         tools["cc"] = [CONFIG.GO.CC_TOOL]
 
     return build_rule(
@@ -1897,11 +1910,13 @@ def _go_binary_cmds(name, static=False, ldflags='', pkg_config='', definitions=N
     if CONFIG.GO.RACE:
         flags += " -race"
 
+    link_tools = {'go': [CONFIG.GO.GO_LINK_TOOL or CONFIG.GO.GO_TOOL]}
+    if _needs_cc(external_link = '-extldflags' in flags or 'linkmode external' in flags):
+        link_tools = {'go': [CONFIG.GO.GO_LINK_TOOL or CONFIG.GO.GO_TOOL], 'ld': [CONFIG.GO.CC_TOOL]}
+
     if split_debug:
         return f'{gen_import_cfg} && {_link_cmd} {flags} $SRCS && $TOOLS_STRIP -o $OUT -f $OUT.sym $OUT', {
-            'go': [CONFIG.GO.GO_LINK_TOOL or CONFIG.GO.GO_TOOL],
-            'ld': [CONFIG.GO.CC_TOOL],
-            'strip': [CONFIG.GO.STRIP_TOOL],
+            k: v for k, v in link_tools.items() + {'strip': [CONFIG.GO.STRIP_TOOL]}.items()
         }
 
     cmds = {
@@ -1912,10 +1927,7 @@ def _go_binary_cmds(name, static=False, ldflags='', pkg_config='', definitions=N
     if gcov and CONFIG.GO.CPP_COVERAGE:
         cmds['cover'] = f'{gen_import_cfg} && {_link_cmd} {flags} -extldflags="--coverage" $SRCS'
 
-    return cmds, {
-        'go': [CONFIG.GO.GO_LINK_TOOL or CONFIG.GO.GO_TOOL],
-        'ld': [CONFIG.GO.CC_TOOL],
-    }
+    return cmds, link_tools
 
 
 def _go_import_path_cmd(import_path):
