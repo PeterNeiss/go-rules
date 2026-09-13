@@ -1868,7 +1868,7 @@ def _go_binary_cmds(name, static=False, ldflags='', pkg_config='', definitions=N
     """Returns the commands to run for linking a Go binary."""
 
     tool = '"$TOOLS_GO"' if CONFIG.GO.GO_LINK_TOOL else '"$TOOLS_GO" tool link'
-    _link_cmd = f'{tool} -importcfg importconfig -tmpdir "$TMP_DIR" -extld "$TOOLS_LD" -o "$OUT"'
+    _link_cmd = f'{tool} -importcfg importconfig -tmpdir "$TMP_DIR" -o "$OUT"'
 
     gen_import_cfg = _set_go_env()
     if not CONFIG.GO.STDLIB:
@@ -1913,6 +1913,8 @@ def _go_binary_cmds(name, static=False, ldflags='', pkg_config='', definitions=N
     link_tools = {'go': [CONFIG.GO.GO_LINK_TOOL or CONFIG.GO.GO_TOOL]}
     if _needs_cc(external_link = '-extldflags' in flags or 'linkmode external' in flags):
         link_tools = {'go': [CONFIG.GO.GO_LINK_TOOL or CONFIG.GO.GO_TOOL], 'ld': [CONFIG.GO.CC_TOOL]}
+        # Only alongside the tool: the build shell treats an unset $TOOLS_LD as an error.
+        _link_cmd += ' -extld "$TOOLS_LD"'
 
     if split_debug:
         return f'{gen_import_cfg} && {_link_cmd} {flags} $SRCS && $TOOLS_STRIP -o $OUT -f $OUT.sym $OUT', {

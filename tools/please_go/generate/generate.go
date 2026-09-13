@@ -575,7 +575,8 @@ func (g *Generate) libTargetForBuildFile(path string) (string, error) {
 		if len(libs) != 1 {
 			log.Fatalf("more than one go library in installed package %v", path)
 		}
-		return buildTarget(libs[0].Name(), filepath.Dir(path), ""), nil
+		// A package in a label is slash-separated on every platform.
+		return buildTarget(libs[0].Name(), filepath.ToSlash(filepath.Dir(path)), ""), nil
 	}
 	return "", nil
 }
@@ -584,7 +585,9 @@ func (g *Generate) subrepoName(module string) string {
 	if g.moduleName == module {
 		return ""
 	}
-	return filepath.Join(g.thirdPartyFolder, strings.ReplaceAll(module, "/", "_"))
+	// A subrepo name is part of a label, so it is joined with "/" on every platform. With filepath
+	// it came out as third_party\go\github.com_davecgh_go-spew on Windows, which names no subrepo.
+	return filepath.ToSlash(filepath.Join(g.thirdPartyFolder, strings.ReplaceAll(module, "/", "_")))
 }
 
 func (g *Generate) libTargetForBuildPackage(i string) (string, error) {

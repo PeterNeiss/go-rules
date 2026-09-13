@@ -6,7 +6,7 @@ hashes = {
     "freebsd_amd64": "becb883a13c7f00eca71219a8539c5cc80eead8e0104e07c2d02ec6c6900ec7d",
     "linux_amd64": "92fbc45047eb825c0bded235447b9c455716f270ce174d107798f5770a4201ab",
     "linux_arm64": "bec438aa687021ad97ab1d626b538644b0a8827784e6458d24939e726f3db9c5",
-    "windows_amd64": "a1c3849d2eac1490d6b6956de8e4bad5970f91bed03651109fbfbdb2b6d87200",
+    "windows_amd64": "b45b95593e389dcbb5bbabef18cc8ad10edc75f52e99cdb22e92f3e803c90e21",
 }
 
 # Upstream publishes no windows_amd64 please_go, and without one a native Windows plz cannot
@@ -17,7 +17,7 @@ owners = {"windows_amd64": "PeterNeiss"}
 
 # The Windows build carries fixes the other platforms' builds do not need, so it is released under its
 # own version rather than replacing an asset earlier commits pin by hash.
-versions = {"windows_amd64": "1.24.0-windows.1"}
+versions = {"windows_amd64": "1.24.0-windows.2"}
 
 for a, h in hashes.items():
     native = f"{CONFIG.OS}_{CONFIG.ARCH}" == a
