@@ -91,7 +91,7 @@ Inherit = true
 [PluginConfig "please_go_tool"]
 ConfigKey = PleaseGoTool
 Optional = true
-Help = A path or build label for the please_go tool, an internal tool used to help build Go code. Defaults to //tools:please_go, which is a download; on Windows, where there is no release to download, it defaults to the please_go the Please install bundles.
+Help = A path or build label for the please_go tool, an internal tool used to help build Go code. Defaults to //tools:please_go, which is a download; a prebuilt release is downloaded for Windows as for every other platform.
 Inherit = true
 
 [PluginConfig "delve_tool"]

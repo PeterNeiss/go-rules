@@ -25,6 +25,29 @@ def _exe_name(out:str):
     return out + ".exe"
 
 
+def _host_exe(path:str):
+    """Returns a path to a Go SDK's tool as the host names it: with .exe on a Windows host.
+
+    Not _exe_name, which is about the platform being built for. A toolchain's own tools run on the
+    machine doing the build, so cross-compiling from Linux for Windows must not rename them, and
+    building on Windows must name them the only way Windows will run them.
+    """
+    return path + '.exe' if CONFIG.HOSTOS == 'windows' else path
+
+
+def _sdk_extract_cmd(url:str):
+    """Returns the command that unpacks a downloaded Go SDK into $OUT.
+
+    Go publishes every platform as a .tar.gz except Windows, which it publishes only as a .zip.
+    Decided by the URL rather than the host, so a url= pointing at a zip works anywhere. arcat
+    rather than unzip because it is what Please already extracts plugin archives with, on every
+    platform Please supports.
+    """
+    if url.endswith('.zip'):
+        return '"$TOOLS_ARCAT" x $SRCS -o _sdk && mv _sdk/go $OUT'
+    return 'tar -xf $SRCS && mv go $OUT'
+
+
 def _please_go_tool():
     """Returns the please_go to build with.
 
@@ -70,7 +93,8 @@ def go_toolchain(name:str, url:str|dict='', version:str='', hashes:list=[], labe
         fail("Either version or url should be provided but not both")
 
     if version:
-        sdk_url = f'https://golang.org/dl/go{version}.{CONFIG.HOSTOS}-{CONFIG.HOSTARCH}.tar.gz'
+        ext = 'zip' if CONFIG.HOSTOS == 'windows' else 'tar.gz'
+        sdk_url = f'https://golang.org/dl/go{version}.{CONFIG.HOSTOS}-{CONFIG.HOSTARCH}.{ext}'
     else:
         sdk_url = url if isinstance(url, str) else url[f'{CONFIG.HOSTOS}-{CONFIG.HOSTARCH}']
 
@@ -90,7 +114,8 @@ def go_toolchain(name:str, url:str|dict='', version:str='', hashes:list=[], labe
     return _go_toolchain(
         name = name,
         srcs = [download],
-        copy_cmd = 'tar -xf $SRCS && mv go $OUT',
+        copy_cmd = _sdk_extract_cmd(sdk_url),
+        extract_tools = {"ARCAT": [CONFIG.ARCAT_TOOL]} if sdk_url.endswith('.zip') else {},
         labels = labels,
         visibility = visibility,
         architectures = architectures,
@@ -102,7 +127,7 @@ def go_toolchain(name:str, url:str|dict='', version:str='', hashes:list=[], labe
 
 
 def _go_toolchain(name:str, srcs:list, labels:list=[], copy_cmd:str, visibility:list, architectures:list, tags:list,
-                  strip_srcs:bool=False, install_std:bool=None, expose_covdata:bool):
+                  strip_srcs:bool=False, install_std:bool=None, expose_covdata:bool, extract_tools:dict={}):
     cmd = f'export GODEBUG="installgoroot=all" && {copy_cmd} && chmod +x $OUT/bin/*; rm -rf $OUT/test'
     # If we're targeting another platform, build the std lib for that. We can't use CONFIG.OS as this is always set to
     # the host OS for tools.
@@ -115,36 +140,39 @@ def _go_toolchain(name:str, srcs:list, labels:list=[], copy_cmd:str, visibility:
             cmd += f" && export CGO_ENABLED=1 && export CFLAGS=\"{flags}\" && export CC=$TOOLS_CC"
 
         tag_flag = (' -tags ' + ','.join(tags)) if tags else ''
+        go = _host_exe('bin/go')
         for arch in architectures:
             goos, _, goarch = arch.partition("_")
-            cmd += f' && (export GOOS={goos} && export GOARCH={goarch} && $OUT/bin/go install{tag_flag} --trimpath std)'
-        cmd += f" && $OUT/bin/go install{tag_flag} --trimpath std"
+            cmd += f' && (export GOOS={goos} && export GOARCH={goarch} && $OUT/{go} install{tag_flag} --trimpath std)'
+        cmd += f" && $OUT/{go} install{tag_flag} --trimpath std"
 
     if strip_srcs:
         trim_toolchain = "mv $OUT/src src && mkdir $OUT/src && mv src/unsafe $OUT/src/unsafe"
         cmd = f"{cmd} && {trim_toolchain}"
 
+    host_tools = f'pkg/tool/{CONFIG.HOSTOS}_{CONFIG.HOSTARCH}'
     entry_points = {
-        'go': f'{name}/bin/go',
-        'gofmt': f'{name}/bin/gofmt',
-        'compile': f'{name}/pkg/tool/{CONFIG.HOSTOS}_{CONFIG.HOSTARCH}/compile',
-        'link': f'{name}/pkg/tool/{CONFIG.HOSTOS}_{CONFIG.HOSTARCH}/link',
-        'cover': f'{name}/pkg/tool/{CONFIG.HOSTOS}_{CONFIG.HOSTARCH}/cover',
+        'go': f'{name}/' + _host_exe('bin/go'),
+        'gofmt': f'{name}/' + _host_exe('bin/gofmt'),
+        'compile': f'{name}/' + _host_exe(f'{host_tools}/compile'),
+        'link': f'{name}/' + _host_exe(f'{host_tools}/link'),
+        'cover': f'{name}/' + _host_exe(f'{host_tools}/cover'),
     }
 
     tools = ['compile', 'link', 'cover']
 
     if expose_covdata:
-        entry_points['covdata'] = f'{name}/pkg/tool/{CONFIG.HOSTOS}_{CONFIG.HOSTARCH}/covdata'
+        entry_points['covdata'] = f'{name}/' + _host_exe(f'{host_tools}/covdata')
         tools += ['covdata']
 
+    cc_tools = {"CC": [CONFIG.GO.CC_TOOL]} if CONFIG.GO.CGO_ENABLED else {}
     tc = build_rule(
         name = name,
         srcs = srcs,
         cmd = cmd,
         outs = [name],
         entry_points = entry_points,
-        tools = {"CC": [CONFIG.GO.CC_TOOL]} if CONFIG.GO.CGO_ENABLED else {},
+        tools = {k: v for k, v in cc_tools.items() + extract_tools.items()},
         binary = True,
         labels = labels,
         visibility = visibility,
@@ -154,7 +182,7 @@ def _go_toolchain(name:str, srcs:list, labels:list=[], copy_cmd:str, visibility:
     for tool in tools:
         genrule(
             name = f"{name}_{tool}",
-            outs = [tool],
+            outs = [_host_exe(tool)],
             binary = True,
             cmd = "cp $TOOLS $OUT",
             output_is_complete = True,
