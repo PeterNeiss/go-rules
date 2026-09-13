@@ -65,7 +65,9 @@ func WritePackageInfo(importPath string, srcRoot, importconfig string, imports m
 		// An import path is /-separated whatever the host, and the importconfig it is looked up in
 		// says so. Joined with filepath it came out as a\b on Windows, matched nothing there, and
 		// every go_repo package failed with "Cannot determine export file path".
-		pkgDir := strings.TrimLeft(filepath.ToSlash(strings.TrimPrefix(dir, srcRoot)), "/")
+		// Both sides normalised before the trim: dir came from filepath.Join and has backslashes on
+		// Windows, srcRoot is as given, and a trim across the two spellings removed nothing.
+		pkgDir := strings.TrimLeft(strings.TrimPrefix(filepath.ToSlash(dir), filepath.ToSlash(srcRoot)), "/")
 		pkg, err := createPackage(path.Join(importPath, pkgDir), dir, subrepo, module)
 		if _, ok := err.(*build.NoGoError); ok {
 			continue // Don't really care, this happens sometimes for modules
