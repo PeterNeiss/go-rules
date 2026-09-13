@@ -142,9 +142,10 @@ func (g *Generate) installTargets() ([]string, error) {
 	var targets []string
 
 	for _, i := range g.install {
-		dir := filepath.Join(g.srcRoot, i)
-		if strings.HasSuffix(dir, "/...") {
-			ts, err := g.targetsInDir(strings.TrimSuffix(dir, "/..."))
+		// The suffix is checked before joining: an install pattern is slash-separated, and the joined
+		// path is not on Windows.
+		if strings.HasSuffix(i, "/...") {
+			ts, err := g.targetsInDir(filepath.Join(g.srcRoot, strings.TrimSuffix(i, "/...")))
 			if err != nil {
 				return nil, err
 			}
@@ -307,14 +308,13 @@ func (g *Generate) generate(dir string) error {
 
 func (g *Generate) matchesInstall(dir string) bool {
 	for _, i := range g.install {
-		i := filepath.Join(g.srcRoot, i)
 		pkgDir := g.pkgDir(dir)
 
+		// As in installTargets: test the slash-separated pattern, then join.
 		if strings.HasSuffix(i, "/...") {
-			i = strings.TrimSuffix(i, "/...")
-			return strings.HasPrefix(pkgDir, i)
+			return strings.HasPrefix(pkgDir, filepath.Join(g.srcRoot, strings.TrimSuffix(i, "/...")))
 		}
-		return i == pkgDir
+		return filepath.Join(g.srcRoot, i) == pkgDir
 	}
 	return false
 }
@@ -541,8 +541,11 @@ func nameForLibInPkg(module, pkg string) string {
 // trimPath is like strings.TrimPrefix but is path aware. It removes base from target if target starts with base,
 // otherwise returns target unmodified.
 func trimPath(target, base string) string {
-	baseParts := strings.Split(filepath.Clean(base), "/")
-	targetParts := strings.Split(filepath.Clean(target), "/")
+	// Split on slashes whatever the platform. filepath.Clean leaves backslashes on Windows, which
+	// made every path one part, so nothing was ever trimmed: the source root stayed on, pkgDir
+	// joined it on again, and go_repo went looking in pkg\windows_amd64\...\pkg\windows_amd64\....
+	baseParts := strings.Split(filepath.ToSlash(filepath.Clean(base)), "/")
+	targetParts := strings.Split(filepath.ToSlash(filepath.Clean(target)), "/")
 
 	if len(targetParts) < len(baseParts) {
 		return target

@@ -6,7 +6,7 @@ hashes = {
     "freebsd_amd64": "becb883a13c7f00eca71219a8539c5cc80eead8e0104e07c2d02ec6c6900ec7d",
     "linux_amd64": "92fbc45047eb825c0bded235447b9c455716f270ce174d107798f5770a4201ab",
     "linux_arm64": "bec438aa687021ad97ab1d626b538644b0a8827784e6458d24939e726f3db9c5",
-    "windows_amd64": "9e5da3f2695c27c165dd130901e7af60e511ce08b946335bf3fd2279cc8293b3",
+    "windows_amd64": "a1c3849d2eac1490d6b6956de8e4bad5970f91bed03651109fbfbdb2b6d87200",
 }
 
 # Upstream publishes no windows_amd64 please_go, and without one a native Windows plz cannot
@@ -15,9 +15,14 @@ hashes = {
 # publishes its own, this whole map entry goes back to being unremarkable.
 owners = {"windows_amd64": "PeterNeiss"}
 
+# The Windows build carries fixes the other platforms' builds do not need, so it is released under its
+# own version rather than replacing an asset earlier commits pin by hash.
+versions = {"windows_amd64": "1.24.0-windows.1"}
+
 for a, h in hashes.items():
     native = f"{CONFIG.OS}_{CONFIG.ARCH}" == a
     owner = owners.get(a, "please-build")
+    version = versions.get(a, VERSION)
     remote_file(
         name = "please_go" if native else f"please_go_{a}",
         binary = True,
@@ -26,6 +31,6 @@ for a, h in hashes.items():
         # no extension in PATHEXT - and Go's exec will not run such a file even given its full
         # path. Every other platform is happy with the name it arrives under.
         out = "please_go.exe" if a.startswith("windows") else None,
-        url = f"https://github.com/{owner}/go-rules/releases/download/please-go-v{VERSION}/please_go-{VERSION}-{a}",
+        url = f"https://github.com/{owner}/go-rules/releases/download/please-go-v{version}/please_go-{version}-{a}",
         visibility = ["PUBLIC"] if native else None,
     )

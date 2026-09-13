@@ -2,6 +2,7 @@ package generate
 
 import (
 	"github.com/stretchr/testify/assert"
+	"path/filepath"
 	"testing"
 )
 
@@ -157,4 +158,11 @@ func TestDepTarget(t *testing.T) {
 			assert.Equal(t, test.expected, g.depTarget(test.importTarget))
 		})
 	}
+}
+
+// Paths reach trimPath in the platform's own form. Built with filepath.Join, so on Windows this is
+// the backslash case that used to trim nothing.
+func TestTrimPathWithPlatformSeparators(t *testing.T) {
+	assert.Equal(t, "foo/bar", trimPath(filepath.Join("pkg", "src", "foo", "bar"), filepath.Join("pkg", "src")))
+	assert.Equal(t, "", trimPath(filepath.Join("pkg", "src"), filepath.Join("pkg", "src")))
 }
