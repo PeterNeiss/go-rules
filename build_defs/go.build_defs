@@ -128,7 +128,11 @@ def go_toolchain(name:str, url:str|dict='', version:str='', hashes:list=[], labe
 
 def _go_toolchain(name:str, srcs:list, labels:list=[], copy_cmd:str, visibility:list, architectures:list, tags:list,
                   strip_srcs:bool=False, install_std:bool=None, expose_covdata:bool, extract_tools:dict={}):
-    cmd = f'export GODEBUG="installgoroot=all" && {copy_cmd} && chmod +x $OUT/bin/*; rm -rf $OUT/test'
+    # GO111MODULE=off: installing std needs no module, and in module mode go walks up from the build
+    # directory - which sits inside the repo unless the build is sandboxed - and reads the repo's own
+    # go.mod. A go.mod written by a newer host Go than the toolchain being installed then stops the
+    # install outright: Go 1.20 rejects "go 1.24.13" as an invalid version.
+    cmd = f'export GODEBUG="installgoroot=all" && export GO111MODULE=off && {copy_cmd} && chmod +x $OUT/bin/*; rm -rf $OUT/test'
     # If we're targeting another platform, build the std lib for that. We can't use CONFIG.OS as this is always set to
     # the host OS for tools.
     if install_std or (install_std is None):
@@ -289,6 +293,8 @@ def go_stdlib(name:str, tags:list=CONFIG.GO.BUILD_TAGS, labels:list=[], visibili
             "GOOS": CONFIG.OS,
             "GOARCH": CONFIG.ARCH,
             "GODEBUG": "installgoroot=all",
+            # As in _go_toolchain: std needs no module, and a repo's go.mod must not be read here.
+            "GO111MODULE": "off",
         },
         labels = ["go_pkg_info", "go_stdlib", "go"] + labels,
         output_is_complete = True,
