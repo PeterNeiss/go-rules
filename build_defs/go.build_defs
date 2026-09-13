@@ -645,8 +645,12 @@ def _generate_pkg_import_cfg_cmd(name, out, pkg_location, handle_basename_eq_dir
     dependencies.
     """
     pkg_location = f'{pkg_location}/pkg/{CONFIG.OS}_{CONFIG.ARCH}'
-    find_archives = f'find {pkg_location} -name "*.a"'
-    remove_pkg_location = f'sed -e s=^{pkg_location}/=='
+    # Found from inside the directory rather than trimmed off afterwards. The location is often
+    # $GOROOT, which on Windows is a path like D:\a\..., and as a sed pattern its backslashes are
+    # escapes: nothing was trimmed, every key came out as a full path, and a compile against the
+    # toolchain's standard library could not import math/rand.
+    find_archives = f'(cd {pkg_location} && find . -name "*.a")'
+    remove_pkg_location = 'sed -e s=^\\./=='
     remove_ext = 'sed -e s="\.a\$"=='
 
     if handle_basename_eq_dirname:

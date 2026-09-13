@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -61,8 +62,11 @@ func WritePackageInfo(importPath string, srcRoot, importconfig string, imports m
 	}
 	pkgs := make([]*packages.Package, 0, len(goFiles))
 	for dir := range goFiles {
-		pkgDir := strings.TrimPrefix(strings.TrimPrefix(dir, srcRoot), "/")
-		pkg, err := createPackage(filepath.Join(importPath, pkgDir), dir, subrepo, module)
+		// An import path is /-separated whatever the host, and the importconfig it is looked up in
+		// says so. Joined with filepath it came out as a\b on Windows, matched nothing there, and
+		// every go_repo package failed with "Cannot determine export file path".
+		pkgDir := strings.TrimLeft(filepath.ToSlash(strings.TrimPrefix(dir, srcRoot)), "/")
+		pkg, err := createPackage(path.Join(importPath, pkgDir), dir, subrepo, module)
 		if _, ok := err.(*build.NoGoError); ok {
 			continue // Don't really care, this happens sometimes for modules
 		} else if err != nil {
@@ -152,7 +156,7 @@ func FromBuildPackage(pkg *build.Package, subrepo, module string) *packages.Pack
 	for i, file := range goFiles {
 		if subrepo != "" {
 			// this is fairly nasty... there must be a better way of getting it without the pkg/ prefix
-			dir := strings.TrimPrefix(pkg.Dir, "pkg/"+runtime.GOOS+"_"+runtime.GOARCH)
+			dir := strings.TrimPrefix(filepath.ToSlash(pkg.Dir), "pkg/"+runtime.GOOS+"_"+runtime.GOARCH)
 			dir = strings.TrimPrefix(strings.TrimPrefix(dir, "/"), module)
 			p.GoFiles[i] = filepath.Join(subrepo, dir, file)
 			p.CompiledGoFiles[i] = filepath.Join(pkg.Dir, file) // Stash this here for later
